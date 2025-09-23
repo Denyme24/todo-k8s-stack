@@ -14,9 +14,9 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: denyme24/todo-frontend:fixed
+          image: denyme24/todo-frontend:v4
           ports:
             - containerPort: 3000
           env:
             - name: NEXT_PUBLIC_API_URL
-              value: "http://backend-service:8000"
+              value: "/api"

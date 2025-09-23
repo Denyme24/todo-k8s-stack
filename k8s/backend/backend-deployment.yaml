@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: backend-container
-          image: denyme24/todo-backend:latest
+          image: denyme24/todo-backend:v2
           ports:
             - containerPort: 8000
           env:
