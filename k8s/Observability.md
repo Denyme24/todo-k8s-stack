@@ -25,6 +25,10 @@ kubectl get pods -n ingress-nginx
 Forwards port 80 of the `ingress-nginx-controller` service to `localhost:8080` for local testing.
 
 ```bash
+kubectl get svc -n ingress-nginx
+```
+
+```bash
 kubectl port-forward svc/ingress-nginx-controller 8080:80 -n ingress-nginx
 ```
 
