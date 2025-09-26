@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: denyme24/todo-frontend:v4
+          image: denyme24/todo-frontend:latest-588e244
           ports:
             - containerPort: 3000
           env:
