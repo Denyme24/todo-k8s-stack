@@ -1,0 +1,205 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: todo-app
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: TodoApp
+    spec:
+      # Database configuration
+      dbPassword: string | default="todoapp"
+      dbUser: string | default="postgres"
+      dbName: string | default="todoapp"
+      dbPort: integer | default=5432
+      dbStorageSize: string | default="1Gi"
+
+      # Backend configuration
+      backendImage: string | default="your-backend-image:latest"
+      backendReplicas: integer | default=2
+      backendPort: integer | default=8000
+
+      # Frontend configuration
+      frontendImage: string | default="your-frontend-image:latest"
+      frontendReplicas: integer | default=2
+      frontendPort: integer | default=3000
+
+    status:
+      # Fields the controller will inject into instances status
+      postgresReady: ${postgresDeployment.status.conditions}
+      backendReady: ${backendDeployment.status.conditions}
+      frontendReady: ${frontendDeployment.status.conditions}
+
+  resources:
+    # PostgreSQL Secret
+    - id: postgresSecret
+      template:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: postgres-secret
+        type: Opaque
+        stringData:
+          DB_HOST: postgres-service
+          DB_NAME: ${schema.spec.dbName}
+          DB_PASSWORD: ${schema.spec.dbPassword}
+          DB_PORT: ${string(schema.spec.dbPort)}
+          DB_USER: ${schema.spec.dbUser}
+          PORT: ${string(schema.spec.backendPort)}
+
+    # PostgreSQL PVC
+    - id: postgresPvc
+      template:
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: postgres-pvc
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: ${schema.spec.dbStorageSize}
+
+    # PostgreSQL Deployment
+    - id: postgresDeployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: postgres
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: postgres
+          template:
+            metadata:
+              labels:
+                app: postgres
+            spec:
+              containers:
+                - name: postgres
+                  image: postgres:15
+                  ports:
+                    - containerPort: ${schema.spec.dbPort}
+                  env:
+                    - name: POSTGRES_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: postgres-secret
+                          key: DB_USER
+                    - name: POSTGRES_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: postgres-secret
+                          key: DB_PASSWORD
+                    - name: POSTGRES_DB
+                      valueFrom:
+                        secretKeyRef:
+                          name: postgres-secret
+                          key: DB_NAME
+                  volumeMounts:
+                    - name: postgres-storage
+                      mountPath: /var/lib/postgresql/data
+              volumes:
+                - name: postgres-storage
+                  persistentVolumeClaim:
+                    claimName: postgres-pvc
+
+    # PostgreSQL Service
+    - id: postgresService
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: postgres-service
+        spec:
+          selector:
+            app: postgres
+          ports:
+            - protocol: TCP
+              port: ${schema.spec.dbPort}
+              targetPort: ${schema.spec.dbPort}
+
+    # Backend Deployment
+    - id: backendDeployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: backend
+        spec:
+          replicas: ${schema.spec.backendReplicas}
+          selector:
+            matchLabels:
+              app: backend
+          template:
+            metadata:
+              labels:
+                app: backend
+            spec:
+              containers:
+                - name: backend
+                  image: ${schema.spec.backendImage}
+                  ports:
+                    - containerPort: ${schema.spec.backendPort}
+                  envFrom:
+                    - secretRef:
+                        name: postgres-secret
+
+    # Backend Service
+    - id: backendService
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: backend-service
+        spec:
+          selector:
+            app: backend
+          ports:
+            - protocol: TCP
+              port: ${schema.spec.backendPort}
+              targetPort: ${schema.spec.backendPort}
+              nodePort: 32427
+          type: NodePort
+
+    # Frontend Deployment
+    - id: frontendDeployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: frontend
+        spec:
+          replicas: ${schema.spec.frontendReplicas}
+          selector:
+            matchLabels:
+              app: frontend
+          template:
+            metadata:
+              labels:
+                app: frontend
+            spec:
+              containers:
+                - name: frontend
+                  image: ${schema.spec.frontendImage}
+                  ports:
+                    - containerPort: ${schema.spec.frontendPort}
+
+    # Frontend Service
+    - id: frontendService
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: frontend-service
+        spec:
+          selector:
+            app: frontend
+          ports:
+            - protocol: TCP
+              port: 80
+              targetPort: ${schema.spec.frontendPort}
+          type: ClusterIP

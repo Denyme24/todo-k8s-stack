@@ -1,0 +1,11 @@
+apiVersion: kro.run/v1alpha1
+kind: TodoApp
+metadata:
+  name: my-todo-app
+spec:
+  backendImage: "denyme24/todo-backend:v2"
+  frontendImage: "denyme24/todo-frontend:v4"
+  backendReplicas: 3
+  frontendReplicas: 2
+  dbPassword: "secure-password"
+  dbStorageSize: "2Gi"
